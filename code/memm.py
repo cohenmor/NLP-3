@@ -76,20 +76,59 @@ def memm_viterbi(sent, logreg, vec):
     """
     predicted_tags = [""] * (len(sent))
     ### YOUR CODE HERE
-    T1 = defaultdict(dict)
-    T2 = defaultdict(dict)
+    possible_tags = [key for key in tagset.keys() if tagset[key] < 27] #todo: = tagset.keys()
+    T1 = defaultdict(lambda: defaultdict(dict))
+    T2 = defaultdict(lambda: defaultdict(dict))
 
     # init
     T1[0]['*']['*'] = 1
+    k = 1
+    features = extract_features(sent, k - 1)
+    vectorized_features = vectorize_features(vec, features)
+    for v in possible_tags:
+        T1[k]['*'][v] = 0
+        q = logreg.predict_proba(vectorized_features)[0][tagset[v]]
+        if q > T1[k]['*'][v]:
+            T1[k]['*'][v] = q
+            T2[k]['*'][v] = '*'
+    k = 2
+    features = extract_features(sent, k-1)
+    vectorized_features = vectorize_features(vec, features)
+    for u in possible_tags:
+        for v in possible_tags:
+            T1[k][u][v] = 0
+            p = T1.get(k - 1, {}).get('*', {}).get(u, 0)
+            q = logreg.predict_proba(vectorized_features)[0][tagset[v]]
+            if p * q > T1[k][u][v]:
+                T1[k][u][v] = p * q
+                T2[k][u][v] = '*'
 
-    for i in range(len(sent)):
-        features = extract_features(sent, i)
+    for k in range(3, len(sent) + 1):
+        features = extract_features(sent, k-1)
         vectorized_features = vectorize_features(vec, features)
-        # for t:
-        #     for u:
-        #         p = T1[k-1][t][u]
-        #         T1[k][u][v] = max(logreg.predict_proba(vectorized_features))
-        #         T2[k][u][v] = argmax(logreg.predict_proba(vectorized_features))
+        for u in possible_tags:
+            for v in possible_tags:
+                T1[k][u][v] = 0
+                for t in possible_tags:
+                    p = T1.get(k-1, {}).get(t, {}).get(u, 0)
+                    q = logreg.predict_proba(vectorized_features)[0][tagset[v]]
+                    if p * q > T1[k][u][v]:
+                        T1[k][u][v] = p * q
+                        T2[k][u][v] = t
+
+    best_prob = 0
+    best_v = best_u = ""
+    for u in possible_tags:
+        for v in possible_tags:
+            if T1[len(sent)-1][u][v] > best_prob:
+                best_prob = T1[len(sent)-1][u][v]
+                best_v = v
+                best_u = u
+    predicted_tags[len(sent)-1] = best_v
+    predicted_tags[len(sent) - 2] = best_u
+
+    for k in range(len(sent)-3, -1, -1):
+        predicted_tags[k] = T2[k+2][predicted_tags[k+1]][predicted_tags[k+2]]
     ### END YOUR CODE
     return predicted_tags
 
@@ -103,11 +142,15 @@ def memm_eval(test_data, logreg, vec):
     for sent in test_data:
         actual = [token[1] for token in sent]
         predicted_greedy = memm_greeedy(sent, logreg, vec)
+        predicted_viterbi = memm_viterbi(sent, logreg, vec)
         for i in range(len(sent)):
             if actual[i] == predicted_greedy[i]:
                 acc_greedy += 1
+            if actual[i] == predicted_viterbi[i]:
+                acc_viterbi += 1
         token_count += len(sent)
     acc_greedy /= token_count
+    acc_viterbi /= token_count
     return acc_viterbi, acc_greedy
 
 if __name__ == "__main__":
@@ -142,20 +185,24 @@ if __name__ == "__main__":
     print "#example: " + str(num_dev_examples)
     print "Done"
 
-    all_examples = train_examples
-    all_examples.extend(dev_examples)
+    # all_examples = train_examples #todo:
+    # all_examples.extend(dev_examples) #todo:
+    all_examples = train_examples[:200]
+    all_examples.extend(dev_examples[:200])
 
     print "Vectorize examples"
     all_examples_vectorized = vec.fit_transform(all_examples)
-    train_examples_vectorized = all_examples_vectorized[:num_train_examples]
-    dev_examples_vectorized = all_examples_vectorized[num_train_examples:]
+    # train_examples_vectorized = all_examples_vectorized[:num_train_examples] #todo:
+    # dev_examples_vectorized = all_examples_vectorized[num_train_examples:] #todo:
+    train_examples_vectorized = all_examples_vectorized[:200]
+    dev_examples_vectorized = all_examples_vectorized[200:]
     print "Done"
 
     logreg = linear_model.LogisticRegression(
         multi_class='multinomial', max_iter=128, solver='lbfgs', C=100000, verbose=10)
     print "Fitting..."
     start = time.time()
-    logreg.fit(train_examples_vectorized, train_labels)
+    logreg.fit(train_examples_vectorized, train_labels[:200]) #todo:
     end = time.time()
     print "done, " + str(end - start) + " sec"
     #End of log linear model training

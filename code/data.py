@@ -52,8 +52,8 @@ def replace_word(word):
     """
     if word.isdigit():
         return "NUM"
-    if word.istitle():
-        return "NAME"
+    # if word.istitle(): #todo: remove
+    #     return "NAME"
     if word.isupper():
         return "ORG"
     if "%" in word:
