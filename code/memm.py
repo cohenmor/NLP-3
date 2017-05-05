@@ -128,7 +128,7 @@ def memm_viterbi(sent, logreg, vec):
     predicted_tags[len(sent) - 2] = best_u
 
     for k in range(len(sent)-3, -1, -1):
-        predicted_tags[k] = T2[k+2][predicted_tags[k+1]][predicted_tags[k+2]]
+        predicted_tags[k] = T2[k+3][predicted_tags[k+1]][predicted_tags[k+2]]
     ### END YOUR CODE
     return predicted_tags
 
