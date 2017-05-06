@@ -52,13 +52,13 @@ def replace_word(word):
     """
     if word.isdigit():
         return "NUM"
-    # if word.istitle(): #todo: remove
-    #     return "NAME"
+    if word.istitle():
+        return "NAME"
     if word.isupper():
         return "ORG"
     if "%" in word:
         return "PRCT"
-    if re.search("((\d)+-(\d)+-(\d)+|(\d)+/(\d)+/(\d)+)", word) is not None:
+    if re.search("((\d)(\d)-(\d)(\d)-(\d)(\d)(\d)(\d)|(\d)(\d)/(\d)(\d)/(\d)+)", word) is not None:
         return "DATE"
     #todo: tbc
     return "UNK"

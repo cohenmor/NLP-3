@@ -16,9 +16,10 @@ def extract_features_base(curr_word, next_word, prev_word, prevprev_word, prev_t
     features['next_word'] = next_word
     features['prevprev_word'] = prevprev_word
     features['prev_tag'] = prev_tag
-    features['prevprev_prev_tag'] = prevprev_tag + prev_tag
-    features.update(dict(("prefix_" + str(i), curr_word[:i+1]) for i in range(min(4, len(curr_word)))))
-    features.update(dict(("suffix_" + str(i), curr_word[-i-1:]) for i in range(min(4, len(curr_word)))))
+    features['prevprev_tag'] = prevprev_tag
+    # features['prevprev_prev_tag'] = prevprev_tag + prev_tag #todo:
+    # features.update(dict(("prefix_" + str(i), curr_word[:i+1]) for i in range(min(4, len(curr_word)))))
+    # features.update(dict(("suffix_" + str(i), curr_word[-i-1:]) for i in range(min(4, len(curr_word)))))
     return features
 
 def extract_features(sentence, i):
@@ -76,7 +77,8 @@ def memm_viterbi(sent, logreg, vec):
     """
     predicted_tags = [""] * (len(sent))
     ### YOUR CODE HERE
-    possible_tags = [key for key in tagset.keys() if tagset[key] < 27] #todo: = tagset.keys()
+    # possible_tags = [key for key in tagset.keys() if tagset[key] < 27] #todo: = tagset.keys()
+    possible_tags = tagset.keys()
     T1 = defaultdict(lambda: defaultdict(dict))
     T2 = defaultdict(lambda: defaultdict(dict))
 
@@ -154,8 +156,8 @@ def memm_eval(test_data, logreg, vec):
     return acc_viterbi, acc_greedy
 
 if __name__ == "__main__":
-    train_sents = read_conll_pos_file("../../Penn_Treebank/train.gold.conll")
-    dev_sents = read_conll_pos_file("../../Penn_Treebank/dev.gold.conll")
+    train_sents = read_conll_pos_file("Penn_Treebank/train.gold.conll")
+    dev_sents = read_conll_pos_file("Penn_Treebank/dev.gold.conll")
 
     vocab = compute_vocab_count(train_sents)
     train_sents = preprocess_sent(vocab, train_sents)
@@ -185,24 +187,24 @@ if __name__ == "__main__":
     print "#example: " + str(num_dev_examples)
     print "Done"
 
-    # all_examples = train_examples #todo:
-    # all_examples.extend(dev_examples) #todo:
-    all_examples = train_examples[:200]
-    all_examples.extend(dev_examples[:200])
+    all_examples = train_examples #todo:
+    all_examples.extend(dev_examples) #todo:
+    # all_examples = train_examples[:200]
+    # all_examples.extend(dev_examples[:200])
 
     print "Vectorize examples"
     all_examples_vectorized = vec.fit_transform(all_examples)
-    # train_examples_vectorized = all_examples_vectorized[:num_train_examples] #todo:
-    # dev_examples_vectorized = all_examples_vectorized[num_train_examples:] #todo:
-    train_examples_vectorized = all_examples_vectorized[:200]
-    dev_examples_vectorized = all_examples_vectorized[200:]
+    train_examples_vectorized = all_examples_vectorized[:num_train_examples] #todo:
+    dev_examples_vectorized = all_examples_vectorized[num_train_examples:] #todo:
+    # train_examples_vectorized = all_examples_vectorized[:200]
+    # dev_examples_vectorized = all_examples_vectorized[200:]
     print "Done"
 
     logreg = linear_model.LogisticRegression(
-        multi_class='multinomial', max_iter=128, solver='lbfgs', C=100000, verbose=10)
+        multi_class='multinomial', max_iter=1024, solver='lbfgs', C=100000, verbose=10, n_jobs=4) #max_iter=128
     print "Fitting..."
     start = time.time()
-    logreg.fit(train_examples_vectorized, train_labels[:200]) #todo:
+    logreg.fit(train_examples_vectorized, train_labels)
     end = time.time()
     print "done, " + str(end - start) + " sec"
     #End of log linear model training
@@ -210,8 +212,8 @@ if __name__ == "__main__":
     acc_viterbi, acc_greedy = memm_eval(dev_sents, logreg, vec)
     print "dev: acc memm greedy: " + acc_greedy
     print "dev: acc memm viterbi: " + acc_viterbi
-    if os.path.exists('../../Penn_Treebank/test.gold.conll'):
-        test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
+    if os.path.exists('Penn_Treebank/test.gold.conll'):
+        test_sents = read_conll_pos_file("Penn_Treebank/test.gold.conll")
         test_sents = preprocess_sent(vocab, test_sents)
         acc_viterbi, acc_greedy = memm_eval(test_sents, logreg, vec)
         print "test: acc memmm greedy: " + acc_greedy
