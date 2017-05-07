@@ -16,10 +16,9 @@ def extract_features_base(curr_word, next_word, prev_word, prevprev_word, prev_t
     features['next_word'] = next_word
     features['prevprev_word'] = prevprev_word
     features['prev_tag'] = prev_tag
-    features['prevprev_tag'] = prevprev_tag
-    # features['prevprev_prev_tag'] = prevprev_tag + prev_tag #todo:
-    # features.update(dict(("prefix_" + str(i), curr_word[:i+1]) for i in range(min(4, len(curr_word)))))
-    # features.update(dict(("suffix_" + str(i), curr_word[-i-1:]) for i in range(min(4, len(curr_word)))))
+    features['prevprev_prev_tag'] = prevprev_tag + prev_tag
+    features.update(dict(("prefix_" + str(i), curr_word[:i+1]) for i in range(min(4, len(curr_word)))))
+    features.update(dict(("suffix_" + str(i), curr_word[-i-1:]) for i in range(min(4, len(curr_word)))))
     return features
 
 def extract_features(sentence, i):
@@ -61,13 +60,16 @@ def memm_greeedy(sent, logreg, vec):
         Returns: predicted tags for the sentence
     """
     predicted_tags = [""] * (len(sent))
-    ### YOUR CODE HERE
+    prev_tag = prevprev_tag = '*'
     for i in range(len(sent)):
         features = extract_features(sent, i)
+        features['prev_tag'] = prev_tag
+        features['prevprev_prev_tag'] = prevprev_tag + prev_tag
         vectorized_features = vectorize_features(vec, features)
-        prediction = logreg.predict(vectorized_features)
-        predicted_tags[i] = prediction
-    ### END YOUR CODE
+        prediction = logreg.predict(vectorized_features)[0]
+        predicted_tags[i] = index_to_tag_dict[prediction]
+        prevprev_tag = prev_tag
+        prev_tag = predicted_tags[i]
     return predicted_tags
 
 def memm_viterbi(sent, logreg, vec):
@@ -77,60 +79,68 @@ def memm_viterbi(sent, logreg, vec):
     """
     predicted_tags = [""] * (len(sent))
     ### YOUR CODE HERE
-    # possible_tags = [key for key in tagset.keys() if tagset[key] < 27] #todo: = tagset.keys()
     possible_tags = tagset.keys()
-    T1 = defaultdict(lambda: defaultdict(dict))
-    T2 = defaultdict(lambda: defaultdict(dict))
+    K = 25
+    best_hypotheses = defaultdict(lambda: defaultdict(dict))
 
-    # init
-    T1[0]['*']['*'] = 1
-    k = 1
-    features = extract_features(sent, k - 1)
-    vectorized_features = vectorize_features(vec, features)
-    for v in possible_tags:
-        T1[k]['*'][v] = 0
-        q = logreg.predict_proba(vectorized_features)[0][tagset[v]]
-        if q > T1[k]['*'][v]:
-            T1[k]['*'][v] = q
-            T2[k]['*'][v] = '*'
-    k = 2
-    features = extract_features(sent, k-1)
-    vectorized_features = vectorize_features(vec, features)
-    for u in possible_tags:
-        for v in possible_tags:
-            T1[k][u][v] = 0
-            p = T1.get(k - 1, {}).get('*', {}).get(u, 0)
-            q = logreg.predict_proba(vectorized_features)[0][tagset[v]]
-            if p * q > T1[k][u][v]:
-                T1[k][u][v] = p * q
-                T2[k][u][v] = '*'
-
-    for k in range(3, len(sent) + 1):
-        features = extract_features(sent, k-1)
-        vectorized_features = vectorize_features(vec, features)
-        for u in possible_tags:
+    best_hypotheses[0]['*']['*'] = 0
+    for i in range(1, len(sent) + 1):
+        features = extract_features(sent, i - 1)
+        features_lst = [dict(features) for _ in range(len(best_hypotheses[i-1]))]
+        hypotheses_keys = best_hypotheses[i - 1].keys()
+        for j in range(len(hypotheses_keys)):
+            (w, u) = hypotheses_keys[j]
+            features_lst[j]['prev_tag'] = u
+            features_lst[j]['prevprev_prev_tag'] = w + u
+        vectorized_features = vec.transform(features_lst)
+        q_mat = logreg.predict_proba(vectorized_features)
+        for j in range(len(hypotheses_keys)):
+            (w, u) = hypotheses_keys[j]
+            p = best_hypotheses[i - 1][(w, u)]
             for v in possible_tags:
-                T1[k][u][v] = 0
-                for t in possible_tags:
-                    p = T1.get(k-1, {}).get(t, {}).get(u, 0)
-                    q = logreg.predict_proba(vectorized_features)[0][tagset[v]]
-                    if p * q > T1[k][u][v]:
-                        T1[k][u][v] = p * q
-                        T2[k][u][v] = t
+                q = q_mat[j][tagset[v]]
+                if q > 0:
+                    sum_log_prob = p + np.log(q)
+                    if len(best_hypotheses[i]) < K:
+                        best_hypotheses[i][(u, v)] = sum_log_prob
+                    else:
+                        min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
+                        if best_hypotheses[i][min_key] < sum_log_prob:
+                            best_hypotheses[i].pop(min_key)
+                            best_hypotheses[i][(u, v)] = sum_log_prob
 
-    best_prob = 0
+        # for (w, u) in best_hypotheses[i - 1]:
+        #     p = best_hypotheses[i - 1][(w, u)]
+        #     features['prev_tag'] = u
+        #     features['prevprev_prev_tag'] = w + u
+        #     vectorized_features = vectorize_features(vec, features)
+        #     q_vec = logreg.predict_proba(vectorized_features)[0]
+        #     for v in possible_tags:
+        #         q = q_vec[tagset[v]]
+        #         if q > 0:
+        #             sum_log_prob = p + np.log(q)
+        #             if len(best_hypotheses[i]) < K:
+        #                 best_hypotheses[i][(u, v)] = sum_log_prob
+        #             else:
+        #                 min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
+        #                 if best_hypotheses[i][min_key] < sum_log_prob:
+        #                     best_hypotheses[i].pop(min_key)
+        #                     best_hypotheses[i][(u, v)] = sum_log_prob
+
+    best_prob = -float("inf")
     best_v = best_u = ""
-    for u in possible_tags:
-        for v in possible_tags:
-            if T1[len(sent)-1][u][v] > best_prob:
-                best_prob = T1[len(sent)-1][u][v]
-                best_v = v
-                best_u = u
+    for (u, v) in best_hypotheses[len(sent)]:
+        prob = best_hypotheses[len(sent)][(u, v)]
+        if prob > best_prob:
+            best_prob = prob
+            best_u = u
+            best_v = v
+
     predicted_tags[len(sent)-1] = best_v
     predicted_tags[len(sent) - 2] = best_u
+    for k in range(len(sent) - 3, -1, -1):
+        predicted_tags[k] = max(best_hypotheses[k + 2], key=best_hypotheses[k + 2].get)[0]
 
-    for k in range(len(sent)-3, -1, -1):
-        predicted_tags[k] = T2[k+3][predicted_tags[k+1]][predicted_tags[k+2]]
     ### END YOUR CODE
     return predicted_tags
 
@@ -141,23 +151,30 @@ def memm_eval(test_data, logreg, vec):
     """
     acc_viterbi, acc_greedy = 0.0, 0.0
     token_count = 0
+    sent_cnt = 0
     for sent in test_data:
         actual = [token[1] for token in sent]
         predicted_greedy = memm_greeedy(sent, logreg, vec)
         predicted_viterbi = memm_viterbi(sent, logreg, vec)
+
         for i in range(len(sent)):
             if actual[i] == predicted_greedy[i]:
                 acc_greedy += 1
             if actual[i] == predicted_viterbi[i]:
                 acc_viterbi += 1
         token_count += len(sent)
+        sent_cnt += 1
+        if sent_cnt % 10 == 0:
+            print "sent cnt is: " + str(sent_cnt)
+            print "curr greedy acc is: " + str(acc_greedy/token_count)
+            print "curr viterbi acc is: " + str(acc_viterbi/token_count)
     acc_greedy /= token_count
     acc_viterbi /= token_count
     return acc_viterbi, acc_greedy
 
 if __name__ == "__main__":
-    train_sents = read_conll_pos_file("Penn_Treebank/train.gold.conll")
-    dev_sents = read_conll_pos_file("Penn_Treebank/dev.gold.conll")
+    train_sents = read_conll_pos_file("../../Penn_Treebank/train.gold.conll")
+    dev_sents = read_conll_pos_file("../../Penn_Treebank/dev.gold.conll")
 
     vocab = compute_vocab_count(train_sents)
     train_sents = preprocess_sent(vocab, train_sents)
@@ -187,21 +204,17 @@ if __name__ == "__main__":
     print "#example: " + str(num_dev_examples)
     print "Done"
 
-    all_examples = train_examples #todo:
-    all_examples.extend(dev_examples) #todo:
-    # all_examples = train_examples[:200]
-    # all_examples.extend(dev_examples[:200])
+    all_examples = train_examples
+    all_examples.extend(dev_examples)
 
     print "Vectorize examples"
     all_examples_vectorized = vec.fit_transform(all_examples)
-    train_examples_vectorized = all_examples_vectorized[:num_train_examples] #todo:
-    dev_examples_vectorized = all_examples_vectorized[num_train_examples:] #todo:
-    # train_examples_vectorized = all_examples_vectorized[:200]
-    # dev_examples_vectorized = all_examples_vectorized[200:]
+    train_examples_vectorized = all_examples_vectorized[:num_train_examples]
+    dev_examples_vectorized = all_examples_vectorized[num_train_examples:]
     print "Done"
 
     logreg = linear_model.LogisticRegression(
-        multi_class='multinomial', max_iter=1024, solver='lbfgs', C=100000, verbose=10, n_jobs=4) #max_iter=128
+        multi_class='multinomial', max_iter=128, solver='lbfgs', C=100000, verbose=1) # todo: max_iter=128, remove n_jobs
     print "Fitting..."
     start = time.time()
     logreg.fit(train_examples_vectorized, train_labels)
@@ -212,8 +225,8 @@ if __name__ == "__main__":
     acc_viterbi, acc_greedy = memm_eval(dev_sents, logreg, vec)
     print "dev: acc memm greedy: " + acc_greedy
     print "dev: acc memm viterbi: " + acc_viterbi
-    if os.path.exists('Penn_Treebank/test.gold.conll'):
-        test_sents = read_conll_pos_file("Penn_Treebank/test.gold.conll")
+    if os.path.exists('../../Penn_Treebank/test.gold.conll'):
+        test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
         test_sents = preprocess_sent(vocab, test_sents)
         acc_viterbi, acc_greedy = memm_eval(test_sents, logreg, vec)
         print "test: acc memmm greedy: " + acc_greedy
