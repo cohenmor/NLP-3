@@ -83,63 +83,59 @@ def memm_viterbi(sent, logreg, vec):
     K = 25
     best_hypotheses = defaultdict(lambda: defaultdict(dict))
 
-    best_hypotheses[0]['*']['*'] = 0
+    best_hypotheses[0]['*']['*'] = 0 # v , u , w
     for i in range(1, len(sent) + 1):
         features = extract_features(sent, i - 1)
-        features_lst = [dict(features) for _ in range(len(best_hypotheses[i-1]))]
-        hypotheses_keys = best_hypotheses[i - 1].keys()
-        for j in range(len(hypotheses_keys)):
-            (w, u) = hypotheses_keys[j]
-            features_lst[j]['prev_tag'] = u
-            features_lst[j]['prevprev_prev_tag'] = w + u
-        vectorized_features = vec.transform(features_lst)
-        q_mat = logreg.predict_proba(vectorized_features)
-        for j in range(len(hypotheses_keys)):
-            (w, u) = hypotheses_keys[j]
-            p = best_hypotheses[i - 1][(w, u)]
+        possible_u_tags = best_hypotheses[i - 1].keys()
+        # features_lst = [[] for _ in possible_u_tags]
+        for u_index in range(len(possible_u_tags)):
+            u = possible_u_tags[u_index]
+            possible_w_tags = best_hypotheses[i - 1][u].keys()
+            features_lst = [dict(features) for _ in possible_w_tags]
+            for w_index in range(len(possible_w_tags)):
+                w = possible_w_tags[w_index]
+                features_lst[w_index]['prev_tag'] = u
+                features_lst[w_index]['prevprev_prev_tag'] = w + u
+            vectorized_features = vec.transform(features_lst)
+            q_mat = logreg.predict_proba(vectorized_features)
             for v in possible_tags:
-                q = q_mat[j][tagset[v]]
-                if q > 0:
-                    sum_log_prob = p + np.log(q)
-                    if len(best_hypotheses[i]) < K:
-                        best_hypotheses[i][(u, v)] = sum_log_prob
-                    else:
-                        min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
-                        if best_hypotheses[i][min_key] < sum_log_prob:
-                            best_hypotheses[i].pop(min_key)
-                            best_hypotheses[i][(u, v)] = sum_log_prob
-
-        # for (w, u) in best_hypotheses[i - 1]:
-        #     p = best_hypotheses[i - 1][(w, u)]
-        #     features['prev_tag'] = u
-        #     features['prevprev_prev_tag'] = w + u
-        #     vectorized_features = vectorize_features(vec, features)
-        #     q_vec = logreg.predict_proba(vectorized_features)[0]
-        #     for v in possible_tags:
-        #         q = q_vec[tagset[v]]
-        #         if q > 0:
-        #             sum_log_prob = p + np.log(q)
-        #             if len(best_hypotheses[i]) < K:
-        #                 best_hypotheses[i][(u, v)] = sum_log_prob
-        #             else:
-        #                 min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
-        #                 if best_hypotheses[i][min_key] < sum_log_prob:
-        #                     best_hypotheses[i].pop(min_key)
-        #                     best_hypotheses[i][(u, v)] = sum_log_prob
+                # for u_index in range(len(possible_u_tags)):
+                #     u = possible_u_tags[u_index]
+                possible_w_tags = best_hypotheses[i - 1][u].keys()
+                best_prob = -float("inf")
+                for w_index in range(len(possible_w_tags)):
+                    w = possible_w_tags[w_index]
+                    p = best_hypotheses[i - 1][u][w]
+                    q = q_mat[w_index][tagset[v]]
+                    if q > 0:
+                        sum_log_prob = p + np.log(q)
+                        if sum_log_prob > best_prob:
+                            best_hypotheses[i][v][u] = sum_log_prob
+                            best_prob = sum_log_prob
+                        # if len(best_hypotheses[i]) < K:
+                        #     best_hypotheses[i][(u, v)] = sum_log_prob
+                        # else:
+                        #     min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
+                        #     if best_hypotheses[i][min_key] < sum_log_prob:
+                        #         best_hypotheses[i].pop(min_key)
+                        #         best_hypotheses[i][(u, v)] = sum_log_prob
 
     best_prob = -float("inf")
     best_v = best_u = ""
-    for (u, v) in best_hypotheses[len(sent)]:
-        prob = best_hypotheses[len(sent)][(u, v)]
-        if prob > best_prob:
-            best_prob = prob
-            best_u = u
-            best_v = v
+    possible_v_tags = best_hypotheses[len(sent)]
+    for v in best_hypotheses[len(sent)]:
+        for u in best_hypotheses[len(sent)][v]:
+            prob = best_hypotheses[len(sent)][v][u]
+            if prob > best_prob:
+                best_prob = prob
+                best_u = u
+                best_v = v
 
     predicted_tags[len(sent)-1] = best_v
     predicted_tags[len(sent) - 2] = best_u
     for k in range(len(sent) - 3, -1, -1):
-        predicted_tags[k] = max(best_hypotheses[k + 2], key=best_hypotheses[k + 2].get)[0]
+        predicted_tags[k] = max(best_hypotheses[k + 2][best_u], key=best_hypotheses[k + 2][best_u].get)
+        best_u = predicted_tags[k]
 
     ### END YOUR CODE
     return predicted_tags
@@ -152,6 +148,7 @@ def memm_eval(test_data, logreg, vec):
     acc_viterbi, acc_greedy = 0.0, 0.0
     token_count = 0
     sent_cnt = 0
+    start = time.time()
     for sent in test_data:
         actual = [token[1] for token in sent]
         predicted_greedy = memm_greeedy(sent, logreg, vec)
@@ -165,9 +162,11 @@ def memm_eval(test_data, logreg, vec):
         token_count += len(sent)
         sent_cnt += 1
         if sent_cnt % 10 == 0:
+            end = time.time()
             print "sent cnt is: " + str(sent_cnt)
             print "curr greedy acc is: " + str(acc_greedy/token_count)
             print "curr viterbi acc is: " + str(acc_viterbi/token_count)
+            print "took: " + str(end-start) + " seconds"
     acc_greedy /= token_count
     acc_viterbi /= token_count
     return acc_viterbi, acc_greedy
@@ -214,7 +213,7 @@ if __name__ == "__main__":
     print "Done"
 
     logreg = linear_model.LogisticRegression(
-        multi_class='multinomial', max_iter=128, solver='lbfgs', C=100000, verbose=1) # todo: max_iter=128, remove n_jobs
+        multi_class='multinomial', max_iter=10, solver='lbfgs', C=100000, verbose=1, n_jobs=3) # todo: max_iter=128, remove n_jobs
     print "Fitting..."
     start = time.time()
     logreg.fit(train_examples_vectorized, train_labels)

@@ -73,7 +73,7 @@ def hmm_viterbi(sent, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_w
     predicted_tags = [""] * (len(sent))
     possible_tags = e_tag_counts.keys()
     # best_hypotheses = {1: {('*', 'NOUN') : 0.5, ('*', 'V') : 0.2}},  for (w, u) in best_h[i-1]
-    K = 40
+    K = 45
     best_hypotheses = defaultdict(lambda: defaultdict(dict))
     best_hypotheses[0]['*']['*'] = 0
     q_cache = {}
@@ -142,7 +142,7 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
                 acc_viterbi += 1
             total_test_tokens += 1
         sent_cnt += 1
-        if sent_cnt % 10 == 0:
+        if sent_cnt % 100 == 0:
             end = time.time()
             print "sent cnt is: " + str(sent_cnt)
             print "curr acc is: " + str(acc_viterbi/total_test_tokens)
@@ -158,8 +158,8 @@ def grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_un
     iter_counter = 0
     opt_score = 0
     opt_lambda1 = opt_lambda2 = 0
-    for lambda1 in np.arange(0.2, 1.01, 0.01):
-        for lambda2 in np.arange(0.2, 1.01 - lambda1, 0.01):
+    for lambda1 in np.arange(0.2, 1.01, 0.1):
+        for lambda2 in np.arange(0.2, 1.01 - lambda1, 0.1):
             acc_viterbi = float(
                 hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
                          e_tag_counts, lambda1, lambda2))
@@ -190,10 +190,10 @@ if __name__ == "__main__":
     dev_sents = preprocess_sent(vocab, dev_sents)
 
     total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts = hmm_train(train_sents)
-    acc_viterbi = hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
-                           e_tag_counts, lambda1=0.35, lambda2=0.35)
-    # grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts)
-    print "dev: acc hmm viterbi: " + acc_viterbi
+    # acc_viterbi = hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
+    #                        e_tag_counts, lambda1=0.35, lambda2=0.35)
+    grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts)
+    # print "dev: acc hmm viterbi: " + acc_viterbi
 
     if os.path.exists("../../Penn_Treebank/test.gold.conll"):
         test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
