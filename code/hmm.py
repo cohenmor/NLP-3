@@ -73,42 +73,39 @@ def hmm_viterbi(sent, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_w
     predicted_tags = [""] * (len(sent))
     possible_tags = e_tag_counts.keys()
     # best_hypotheses = {1: {('*', 'NOUN') : 0.5, ('*', 'V') : 0.2}},  for (w, u) in best_h[i-1]
-    K = 45
+    K = 50
     best_hypotheses = defaultdict(lambda: defaultdict(dict))
-    best_hypotheses[0]['*']['*'] = 0
+    best_hypotheses[0][('*','*')] = 0
     q_cache = {}
     e_cache = {}
     for i in range(1, len(sent) + 1):
         for v in possible_tags:
-            for u in possible_tags:
-                best_prob = -float("inf")
-                for w in possible_tags:
-                    p = best_hypotheses[i - 1].get(w, {}).get(u, None)
-                    if p is not None:
-                        if (w, u, v) not in q_cache:
-                            q_cache[(w, u, v)] = calc_transition_prob(w, u, v, q_tri_counts, q_bi_counts, q_uni_counts, total_tokens, lambda1,
-                                                                      lambda2)
-                        q = q_cache[(w, u, v)]
-                        if (sent[i-1][0], v) not in e_cache:
-                            e_cache[(sent[i-1][0], v)] = calc_emission_prob(sent[i - 1][0], v, e_word_tag_counts, e_tag_counts)
-                        e = e_cache[(sent[i-1][0], v)]
-                        if q is not None and e is not None and p + q + e > best_prob:
-                            sum_log_prob = p + q + e
-                            best_prob = sum_log_prob
-                            if len(best_hypotheses[i]) < K:
-                                best_hypotheses[i][u][v] = sum_log_prob
-                            else:
-                                min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
-                                if best_hypotheses[i][min_key] < sum_log_prob:
-                                    best_hypotheses[i].pop(min_key)
-                                    best_hypotheses[i][(u, v)] = sum_log_prob
+            best_prob = -float("inf")
+            for (w, u) in best_hypotheses[i - 1]:
+                p = best_hypotheses[i - 1][(w, u)]
+                if (w, u, v) not in q_cache:
+                    q_cache[(w, u, v)] = calc_transition_prob(w, u, v, q_tri_counts, q_bi_counts, q_uni_counts, total_tokens, lambda1,
+                                                              lambda2)
+                q = q_cache[(w, u, v)]
+                if (sent[i-1][0], v) not in e_cache:
+                    e_cache[(sent[i-1][0], v)] = calc_emission_prob(sent[i - 1][0], v, e_word_tag_counts, e_tag_counts)
+                e = e_cache[(sent[i-1][0], v)]
+                if q is not None and e is not None and p + q + e > best_prob:
+                    sum_log_prob = p + q + e
+                    best_prob = sum_log_prob
+                    if len(best_hypotheses[i]) < K:
+                        best_hypotheses[i][(u, v)] = sum_log_prob
+                    else:
+                        min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
+                        if best_hypotheses[i][min_key] < sum_log_prob:
+                            best_hypotheses[i].pop(min_key)
+                            best_hypotheses[i][(u, v)] = sum_log_prob
 
     best_prob = -float("inf")
     best_v = best_u = ""
-    for u in best_hypotheses[len(sent)]:
-        for v in best_hypotheses[len(sent)][u]:
+    for (u, v) in best_hypotheses[len(sent)]:
             q = calc_transition_prob(u, v, "STOP", q_tri_counts, q_bi_counts, q_uni_counts, total_tokens, lambda1, lambda2)
-            p = best_hypotheses[len(sent)][u][v]
+            p = best_hypotheses[len(sent)][(u, v)]
             prob = p + q
             if q is not None and prob > best_prob:
                 best_prob = prob
@@ -118,7 +115,7 @@ def hmm_viterbi(sent, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_w
     predicted_tags[len(sent) - 1] = best_v
     predicted_tags[len(sent) - 2] = best_u
     for k in range(len(sent) - 3, -1, -1):
-        predicted_tags[k] = max(best_hypotheses[k + 2], key=best_hypotheses[k + 2].get)
+        predicted_tags[k] = max(best_hypotheses[k + 2], key=best_hypotheses[k + 2].get)[0]
     return predicted_tags
 
 
@@ -190,10 +187,10 @@ if __name__ == "__main__":
     dev_sents = preprocess_sent(vocab, dev_sents)
 
     total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts = hmm_train(train_sents)
-    # acc_viterbi = hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
-    #                        e_tag_counts, lambda1=0.35, lambda2=0.35)
-    grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts)
-    # print "dev: acc hmm viterbi: " + acc_viterbi
+    acc_viterbi = hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
+                           e_tag_counts, lambda1=0.6, lambda2=0.3)
+    # grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts)
+    print "dev: acc hmm viterbi: " + acc_viterbi
 
     if os.path.exists("../../Penn_Treebank/test.gold.conll"):
         test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
