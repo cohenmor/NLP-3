@@ -12,7 +12,6 @@ def hmm_train(sents):
     """
     total_tokens = 0
     q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts = {}, {}, {}, {}, {}
-    # todo: e_tag_counts ==? q_uni_counts
     for sent in sents:
         sent = [("<s>", "*"), ("<s>", "*")] + sent + [("</s>", "STOP")]
         for i in range(2):
@@ -53,7 +52,7 @@ def calc_transition_prob(prevprev, prev, curr, q_tri_counts, q_bi_counts, q_uni_
 
     uni_prob = float(q_uni_counts.get(curr, 0)) / total_tokens
 
-    final_prob = lambda1 * tri_prob + lambda2 * bi_prob + lambda3 * uni_prob  # todo: try different lambdas
+    final_prob = lambda1 * tri_prob + lambda2 * bi_prob + lambda3 * uni_prob
     return None if final_prob == 0 else np.log(final_prob)
 
 
@@ -72,7 +71,6 @@ def hmm_viterbi(sent, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_w
     """
     predicted_tags = [""] * (len(sent))
     possible_tags = e_tag_counts.keys()
-    # best_hypotheses = {1: {('*', 'NOUN') : 0.5, ('*', 'V') : 0.2}},  for (w, u) in best_h[i-1]
     K = 50
     best_hypotheses = defaultdict(lambda: defaultdict(dict))
     best_hypotheses[0][('*','*')] = 0
@@ -140,6 +138,7 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
             total_test_tokens += 1
         sent_cnt += 1
         if sent_cnt % 100 == 0:
+            # Print progress reports
             end = time.time()
             print "sent cnt is: " + str(sent_cnt)
             print "curr acc is: " + str(acc_viterbi/total_test_tokens)
@@ -155,8 +154,8 @@ def grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_un
     iter_counter = 0
     opt_score = 0
     opt_lambda1 = opt_lambda2 = 0
-    for lambda1 in np.arange(0.2, 1.01, 0.1):
-        for lambda2 in np.arange(0.2, 1.01 - lambda1, 0.1):
+    for lambda1 in np.arange(0.0, 1.0, 0.1):
+        for lambda2 in np.arange(0.0, 1.0 - lambda1, 0.1):
             acc_viterbi = float(
                 hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
                          e_tag_counts, lambda1, lambda2))
@@ -179,8 +178,8 @@ def grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_un
 
 
 if __name__ == "__main__":
-    train_sents = read_conll_pos_file("../../Penn_Treebank/train.gold.conll")
-    dev_sents = read_conll_pos_file("../../Penn_Treebank/dev.gold.conll")
+    train_sents = read_conll_pos_file("Penn_Treebank/train.gold.conll")
+    dev_sents = read_conll_pos_file("Penn_Treebank/dev.gold.conll")
     vocab = compute_vocab_count(train_sents)
 
     train_sents = preprocess_sent(vocab, train_sents)
@@ -188,12 +187,14 @@ if __name__ == "__main__":
 
     total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts = hmm_train(train_sents)
     acc_viterbi = hmm_eval(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts,
-                           e_tag_counts, lambda1=0.6, lambda2=0.3)
+                           e_tag_counts, lambda1=0.9, lambda2=0.0)  # Using optimal lambdas based on grid search
+
+    # Uncomment next line to perform grid search
     # grid_search_lambdas(dev_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e_word_tag_counts, e_tag_counts)
     print "dev: acc hmm viterbi: " + acc_viterbi
 
-    if os.path.exists("../../Penn_Treebank/test.gold.conll"):
-        test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
+    if os.path.exists("Penn_Treebank/test.gold.conll"):
+        test_sents = read_conll_pos_file("Penn_Treebank/test.gold.conll")
         test_sents = preprocess_sent(vocab, test_sents)
         acc_viterbi = hmm_eval(test_sents, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts,
                                e_word_tag_counts, e_tag_counts)

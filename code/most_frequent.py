@@ -34,8 +34,8 @@ def most_frequent_eval(test_set, pred_tags):
     return str(100. * float(correct_pred_count) / token_count)
 
 if __name__ == "__main__":
-    train_sents = read_conll_pos_file("../../Penn_Treebank/train.gold.conll")
-    dev_sents = read_conll_pos_file("../../Penn_Treebank/dev.gold.conll")
+    train_sents = read_conll_pos_file("Penn_Treebank/train.gold.conll")
+    dev_sents = read_conll_pos_file("Penn_Treebank/dev.gold.conll")
     vocab = compute_vocab_count(train_sents)
     train_sents = preprocess_sent(vocab, train_sents)
     dev_sents = preprocess_sent(vocab, dev_sents)
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     model = most_frequent_train(train_sents)
     print "dev: most frequent acc: " + most_frequent_eval(dev_sents, model)
 
-    if os.path.exists('../../Penn_Treebank/test.gold.conll'):
-        test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
+    if os.path.exists('Penn_Treebank/test.gold.conll'):
+        test_sents = read_conll_pos_file("Penn_Treebank/test.gold.conll")
         test_sents = preprocess_sent(vocab, test_sents)
         print "test: most frequent acc: " + most_frequent_eval(test_sents, model)

@@ -60,7 +60,12 @@ def replace_word(word):
         return "PRCT"
     if re.search("((\d)(\d)-(\d)(\d)-(\d)(\d)(\d)(\d)|(\d)(\d)/(\d)(\d)/(\d)+)", word) is not None:
         return "DATE"
-    #todo: tbc
+    if any(char.isdigit() for char in word):
+        return "NUM"
+    if "-" in word:
+        return "PHRASE"
+    if word[-2:] == "ly":
+        return "ADVERB"
     return "UNK"
 
 def preprocess_sent(vocab, sents):

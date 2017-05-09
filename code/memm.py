@@ -83,17 +83,13 @@ def memm_viterbi(sent, logreg, vec):
     K = 100
     best_hypotheses = defaultdict(lambda: defaultdict(dict))
 
-    best_hypotheses[0][('*', '*')] = 0 # v , u , w
+    best_hypotheses[0][('*', '*')] = 0
     for i in range(1, len(sent) + 1):
         features = extract_features(sent, i - 1)
-        possible_u_tags = best_hypotheses[i - 1].keys()
         features_lst = []
         key_to_index = {}
         features_index = 0
         for (u, w) in best_hypotheses[i-1]:
-        # for u in possible_u_tags:
-            # possible_w_tags = best_hypotheses[i - 1][u].keys()
-            # for w in possible_w_tags:
             features['prev_tag'] = u
             features['prevprev_prev_tag'] = w + u
             features_lst.append(dict(features))
@@ -104,9 +100,6 @@ def memm_viterbi(sent, logreg, vec):
         for v in possible_tags:
             best_prob = -float("inf")
             for (u, w) in best_hypotheses[i-1]:
-            # for u in possible_u_tags:
-                # possible_w_tags = best_hypotheses[i - 1][u].keys()
-                # for w in possible_w_tags:
                 p = best_hypotheses[i - 1][(u, w)]
                 q = q_vec[key_to_index[(u, w)]][tagset[v]]
                 if q > 0:
@@ -116,17 +109,13 @@ def memm_viterbi(sent, logreg, vec):
                             best_hypotheses[i][(v, u)] = sum_log_prob
                         else:
                             min_key = min(best_hypotheses[i], key=best_hypotheses[i].get)
-                            # if best_hypotheses[i][min_key] < sum_log_prob:
                             best_hypotheses[i].pop(min_key)
                             best_hypotheses[i][(v, u)] = sum_log_prob
                         best_prob = sum_log_prob
 
-
     best_prob = -float("inf")
     best_v = best_u = ""
     for (v, u) in best_hypotheses[len(sent)]:
-    # for v in best_hypotheses[len(sent)]:
-    #     for u in best_hypotheses[len(sent)][v]:
         prob = best_hypotheses[len(sent)][(v, u)]
         if prob > best_prob:
             best_prob = prob
@@ -137,9 +126,8 @@ def memm_viterbi(sent, logreg, vec):
     predicted_tags[len(sent) - 2] = best_u
     for k in range(len(sent) - 3, -1, -1):
         predicted_tags[k] = max(best_hypotheses[k + 2], key=best_hypotheses[k + 2].get)[1]
-        # best_u = predicted_tags[k]
-
     ### END YOUR CODE
+
     return predicted_tags
 
 def memm_eval(test_data, logreg, vec):
@@ -164,6 +152,7 @@ def memm_eval(test_data, logreg, vec):
         token_count += len(sent)
         sent_cnt += 1
         if sent_cnt % 10 == 0:
+            # Print progress reports
             end = time.time()
             print "sent cnt is: " + str(sent_cnt)
             print "curr greedy acc is: " + str(acc_greedy/token_count)
@@ -175,8 +164,8 @@ def memm_eval(test_data, logreg, vec):
     return acc_viterbi, acc_greedy
 
 if __name__ == "__main__":
-    train_sents = read_conll_pos_file("../../Penn_Treebank/train.gold.conll")
-    dev_sents = read_conll_pos_file("../../Penn_Treebank/dev.gold.conll")
+    train_sents = read_conll_pos_file("Penn_Treebank/train.gold.conll")
+    dev_sents = read_conll_pos_file("Penn_Treebank/dev.gold.conll")
 
     vocab = compute_vocab_count(train_sents)
     train_sents = preprocess_sent(vocab, train_sents)
@@ -216,7 +205,7 @@ if __name__ == "__main__":
     print "Done"
 
     logreg = linear_model.LogisticRegression(
-        multi_class='multinomial', max_iter=128, solver='lbfgs', C=100000, verbose=1, n_jobs=3) # todo: max_iter=128, remove n_jobs
+        multi_class='multinomial', max_iter=128, solver='lbfgs', C=100000, verbose=1, n_jobs=3)
     print "Fitting..."
     start = time.time()
     logreg.fit(train_examples_vectorized, train_labels)
@@ -227,8 +216,8 @@ if __name__ == "__main__":
     acc_viterbi, acc_greedy = memm_eval(dev_sents, logreg, vec)
     print "dev: acc memm greedy: " + str(acc_greedy)
     print "dev: acc memm viterbi: " + str(acc_viterbi)
-    if os.path.exists('../../Penn_Treebank/test.gold.conll'):
-        test_sents = read_conll_pos_file("../../Penn_Treebank/test.gold.conll")
+    if os.path.exists('Penn_Treebank/test.gold.conll'):
+        test_sents = read_conll_pos_file("Penn_Treebank/test.gold.conll")
         test_sents = preprocess_sent(vocab, test_sents)
         acc_viterbi, acc_greedy = memm_eval(test_sents, logreg, vec)
         print "test: acc memmm greedy: " + str(acc_greedy)
